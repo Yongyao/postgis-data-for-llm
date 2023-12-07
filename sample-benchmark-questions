@@ -1,0 +1,250 @@
+What is the population of the City of New York?
+SELECT SUM(popn_total) 
+FROM nyc_census_blocks
+
+What neighorboods are in "Queen"?
+SELECT name 
+FROM nyc_neighborhoods 
+WHERE boroname = 'Queen';
+
+What is the number of letters in the names of all the neighborhoods in Queen?
+SELECT char_length(name) 
+FROM nyc_neighborhoods 
+WHERE boroname = 'Brooklyn';
+
+What is the population of 'The Bronx'?
+SELECT SUM(popn_total) FROM nyc_census_blocks WHERE boroname = 'The Bronx'
+
+How many “neighborhoods” are in each borough?
+SELECT boroname, COUNT(*) AS num_neighborhoods 
+FROM nyc_neighborhoods 
+GROUP BY boroname LIMIT 5;
+
+For each borough, what percentage of the population is white?
+SELECT boroname, ROUND(SUM(popn_white) / SUM(popn_total) * 100, 2) AS percentage_white
+FROM nyc_census_blocks
+
+What is the average number of letters in the names of all the neighborhoods in New York City, reported by borough?
+SELECT boroname, avg(char_length(name)), stddev(char_length(name)) 
+FROM nyc_neighborhoods 
+GROUP BY boroname;
+
+How many records are in the nyc_streets table?
+SELECT Count(*)
+FROM nyc_streets;
+
+How many streets in NYC start with ‘Q’?
+SELECT Count(*)
+FROM nyc_streets
+WHERE name LIKE 'Q%';
+
+What is the population of the City of New York?
+SELECT Sum(popn_total) AS population
+FROM nyc_census_blocks;
+
+What is the area of Manhattan in acres?
+SELECT ST_Area(geom)/4046.86 AS area_in_acres
+FROM nyc_neighborhoods
+WHERE boroname = 'Manhattan';
+
+What is the most westerly subway station?
+SELECT name, ST_X(geom) AS longitude
+FROM nyc_subway_stations
+ORDER BY longitude ASC
+LIMIT 1;
+
+What is the geometry type of each dataset?
+SELECT name, ST_GeometryType(geom), ST_NDims(geom), ST_SRID(geom)
+FROM geometries;
+
+How long is ‘Columbus Cir’ (aka Columbus Circle)?
+SELECT ST_Length(geom)
+FROM nyc_streets
+WHERE name = 'Columbus Cir';
+
+What is the area of the ‘West Village’ neighborhood?
+SELECT ST_Area(geom)
+FROM nyc_neighborhoods
+WHERE name = 'West Village';
+
+What is the geometry type of ‘Pelham St’? The length?
+SELECT ST_GeometryType(geom), ST_Length(geom)
+FROM nyc_streets
+WHERE name = 'Pelham St';
+
+What is the length of streets in New York City, summarized by type?
+SELECT type, SUM(ST_Length(geom)) AS total_length
+FROM nyc_streets
+GROUP BY type;
+
+What subway station is in ‘Little Italy’? What subway route is it on?
+SELECT name, routes
+FROM nyc_subway_stations
+WHERE ST_Contains(
+(SELECT geom FROM nyc_neighborhoods WHERE name = 'Little Italy'), 
+geom)
+
+What is the GeoJSON representation of the ‘Broad St’ subway station?
+SELECT ST_AsGeoJSON(geom)
+FROM nyc_subway_stations
+WHERE name = 'Broad St';
+
+What is the geospatial representation of 'Broad St' subway station?
+SELECT name, geom
+FROM nyc_subway_stations
+WHERE name = 'Broad St';
+
+What is the geospatial representation of 'Broad St' subway station as text?
+SELECT name, ST_AsText(geom)
+FROM nyc_subway_stations
+WHERE name = 'Broad St';
+
+What is the total length of streets (in kilometers) in New York City?
+SELECT Sum(ST_Length(geom)) / 1000
+FROM nyc_streets;
+
+After 9/11, the ‘Battery Park’ neighborhood was off limits for several days. How many people had to be evacuated?
+SELECT SUM(popn_total)
+FROM nyc_census_blocks
+WHERE ST_Intersects(geom, 
+ (SELECT geom FROM nyc_neighborhoods 
+WHERE name = 'Battery Park'))
+
+What is the geometry value for the street named ‘Atlantic Commons’?
+SELECT ST_AsText(geom)
+FROM nyc_streets
+WHERE name = 'Atlantic Commons';
+
+What is the population and racial make-up of the neighborhoods of Manhattan?
+SELECT nghbhd, popn_total AS total_population, 
+SUM(popn_white) AS total_white, 
+SUM(popn_black) AS total_black, 
+SUM(popn_nativ) AS total_nativ, 
+SUM(popn_asian) AS total_asian, 
+SUM(popn_other) AS total_other
+FROM nyc_census_blocks AS cb
+INNER JOIN nyc_neighborhoods AS nb 
+ON ST_Intersects(cb.geom, nb.geom)
+WHERE nb.boroname = 'Manhattan'
+GROUP BY nghbhd;
+
+What neighborhood has the highest population density?
+SELECT name, (popn_total/ST_Area(nyc_census_blocks.geom)) AS population_density
+FROM nyc_census_blocks
+INNER JOIN nyc_neighborhoods 
+ON ST_Intersects(nyc_census_blocks.geom, nyc_neighborhoods.geom)
+ORDER BY population_density DESC
+LIMIT 1;
+
+What neighborhood and borough is Atlantic Commons in?
+SELECT name, boroname
+FROM nyc_neighborhoods
+WHERE ST_Intersects(
+  geom,
+  ST_GeomFromText('LINESTRING(586782 4504202,586864 4504216)', 26918)
+);
+
+What streets does Atlantic Commons join with?
+SELECT name
+FROM nyc_streets
+WHERE ST_DWithin(
+  geom,
+  ST_GeomFromText('LINESTRING(586782 4504202,586864 4504216)', 26918),
+  0.1
+);
+
+How many people live on (within 50 meters of) Atlantic Commons?
+SELECT Sum(popn_total)
+FROM nyc_census_blocks
+WHERE ST_DWithin(
+geom,
+ST_GeomFromText('LINESTRING(586782 4504202,586864 4504216)', 26918),
+50
+);
+
+How many census blocks don’t contain their own centroid?
+SELECT Count(*)
+FROM nyc_census_blocks
+WHERE NOT ST_Contains(geom, ST_Centroid(geom));
+
+What is the geospatial reference system for the nyc streets dataset?
+SELECT ST_SRID(geom) FROM nyc_streets LIMIT 1;
+
+What neiborghood contains 'Broad St' subway station?
+SELECT
+  subways.name AS subway_name,
+  neighborhoods.name AS neighborhood_name,
+  neighborhoods.boroname AS borough
+FROM nyc_neighborhoods AS neighborhoods
+JOIN nyc_subway_stations AS subways
+ON ST_Contains(neighborhoods.geom, subways.geom)
+WHERE subways.name = 'Broad St';
+
+What is the closest street to the subway stations in the neighborhood that has the highest population density?
+WITH densest_neighborhood AS (
+  SELECT n.name AS name, n.geom AS geom
+  FROM nyc_census_blocks b
+  INNER JOIN nyc_neighborhoods n
+  ON ST_Intersects(b.geom, n.geom)
+  GROUP BY n.name
+  ORDER BY SUM(b.popn_total) / ST_Area(n.geom) DESC
+  LIMIT 1
+),
+station_locations AS (
+  SELECT id, name AS station_name, ST_Transform(geom, 4326) AS geom
+  FROM nyc_subway_stations
+),
+street_lines AS (
+  SELECT id, name AS street_name, ST_Transform(geom, 4326) AS geom
+  FROM nyc_streets
+)
+SELECT
+  sl.station_name,
+  s.street_name AS closest_street,
+  ST_Distance(sl.geom, s.geom) AS distance
+FROM densest_neighborhood dn
+INNER JOIN station_locations sl
+ON ST_Intersects(dn.geom, sl.geom)
+INNER JOIN street_lines s
+ON ST_DWithin(sl.geom, s.geom, 0.01)
+ORDER BY sl.station_name, distance ASC;
+
+What subway stations are in the neighborhood that has the highest population density?
+WITH densest_neighborhood AS (
+  SELECT n.name AS name, n.geom AS geom
+  FROM nyc_census_blocks b
+  INNER JOIN nyc_neighborhoods n
+  ON ST_Intersects(b.geom, n.geom)
+  GROUP BY n.name
+  ORDER BY SUM(b.popn_total) / ST_Area(n.geom) DESC
+  LIMIT 1
+)
+SELECT s.name AS station_name
+FROM densest_neighborhood dn
+INNER JOIN nyc_subway_stations s
+ON ST_Intersects(dn.geom, ST_Buffer(s.geom, 0.001));
+
+What are all the neighborhoods served by the 6-train? 
+SELECT DISTINCT n.name, n.boroname
+FROM nyc_subway_stations AS s
+JOIN nyc_neighborhoods AS n
+ON ST_Contains(n.geom, s.geom)
+WHERE strpos(s.routes,'6') > 0;
+
+List top 10 New York neighborhoods ordered by the proportion of people who have graduate degrees.
+SELECT
+  100.0 * Sum(t.edu_graduate_dipl) / Sum(t.edu_total) AS graduate_pct,
+  n.name, n.boroname
+FROM nyc_neighborhoods n
+JOIN nyc_census_tracts t
+ON ST_Intersects(n.geom, t.geom)
+WHERE t.edu_total > 0
+GROUP BY n.name, n.boroname
+ORDER BY graduate_pct DESC
+LIMIT 10;
+
+What is the population of the people in New York within 500 meters of a subway station?
+SELECT Sum(popn_total)
+FROM nyc_census_blocks census
+JOIN nyc_subway_stations subway
+ON ST_DWithin(census.geom, subway.geom, 500);
